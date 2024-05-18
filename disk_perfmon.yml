@@ -1,0 +1,38 @@
+---
+# Performance Monitoring Tool (Disk Usage)
+- name: Record Disk Space
+  hosts: all
+  become: false
+  tasks:
+    - name: Check for existing CSV file
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/disk_stats.csv"
+      register: csv_file
+
+    - name: If CSV file doesn't exist
+      when: not csv_file.stat.exists
+      block:
+        - name: Create CSV file
+          ansible.builtin.file:
+            path: "{{ playbook_dir }}/disk_stats.csv"
+            state: touch
+            mode: "0666"
+
+        - name: Write header
+          ansible.builtin.lineinfile:
+            path: "{{ playbook_dir }}/disk_stats.csv"
+            line: "Date/Time,IP Address,Filesystem,Size,Used,Available,Use%,Mounted on"
+
+    - name: Check Disk Space
+      ansible.builtin.command: df -h
+      register: disk_result
+      changed_when: false
+
+    - name: Append stats to CSV file
+      delegate_to: localhost
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/disk_stats.csv"
+        line: "{{ ansible_date_time.iso8601 }},
+                {{ hostvars[inventory_hostname].ansible_default_ipv4.address }},
+                {{ item.split() | replace('[', '') | replace(']', '') | replace(\"'\", '') }}"
+      loop: "{{ disk_result.stdout_lines[1:] }}"
