@@ -1,0 +1,71 @@
+---
+# Performance Monitoring Tool (CPU & Memory Usage)
+- name: Record CPU & RAM usage
+  hosts: all
+  become: false
+  tasks:
+    - name: Check for existing CSV file
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/cpumem_stats.csv"
+      register: csv_file
+
+    - name: If CSV file doesn't exist
+      when: not csv_file.stat.exists
+      block:
+        - name: Create CSV file
+          ansible.builtin.file:
+            path: "{{ playbook_dir }}/cpumem_stats.csv"
+            state: touch
+            mode: "0666"
+
+        - name: Write header
+          ansible.builtin.lineinfile:
+            path: "{{ playbook_dir }}/cpumem_stats.csv"
+            line: "Date/Time,IP Address,CPU Usage %,Total Memory,Used Memory,Available Memory"
+
+    - name: Check Total CPU Usage %
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          top -b -n 1 | grep "%Cpu(s)" | awk '{print 100-$8}'
+        executable: /bin/bash
+      register: cpu_prcent
+      changed_when: false
+
+    - name: Check Total Memory
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          free -h | grep "Mem:" | awk '{print $2}'
+        executable: /bin/bash
+      register: total_mem
+      changed_when: false
+
+    - name: Check Used Memory
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          free -h | grep "Mem:" | awk '{print $3}'
+        executable: /bin/bash
+      register: used_mem
+      changed_when: false
+
+    - name: Check Available Memory
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          free -h | grep "Mem:" | awk '{print $7}'
+        executable: /bin/bash
+      register: avail_mem
+      changed_when: false
+
+    - name: Append stats to CSV file
+      delegate_to: localhost
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/cpumem_stats.csv"
+        line: "{{ ansible_date_time.iso8601 }},
+                {{ hostvars[inventory_hostname].ansible_default_ipv4.address }},
+                {{ cpu_prcent.stdout }},
+                {{ total_mem.stdout }},
+                {{ used_mem.stdout }},
+                {{ avail_mem.stdout }}"
