@@ -1,0 +1,112 @@
+---
+- name: Installation of OpenVPN server daemon
+  hosts: openvpn
+  become: true
+  vars:
+    original_script: ../bash/scripts_folder/install_openvpn.sh
+    dir: /home/ec2-user/
+    script: /home/ec2-user/openvpn-install.sh
+    client_template: /etc/openvpn/client-template.txt
+    server_conf: /etc/openvpn/server.conf
+    ipv4_addr: 3.8.11.89
+    pam_config: ../config/openvpn
+  tasks:
+    - name: Check if OpenVPN is installed
+      ansible.builtin.stat:
+        path: /etc/init.d/openvpn
+      register: openvpn_exists
+
+    - name: Install OpenVPN
+      when: not openvpn_exists.stat.exists
+      block:
+        - name: Download OpenVPN script
+          ansible.builtin.copy:
+            src: "{{ original_script }}"
+            dest: "{{ script }}"
+            force: true
+            mode: "0555"
+
+        - name: Add public Elastic IP to install script
+          ansible.builtin.lineinfile:
+            path: "{{ script }}"
+            state: present
+            search_string: IP=REPLACE_ME
+            line: IP="{{ ipv4_addr }}"
+
+        # - name: Delete newClient() function call in installOpenVPN() function
+        #   ansible.builtin.lineinfile:
+        #     path: "{{ script }}"
+        #     state: present
+        #     regexp: newClient
+        #     firstmatch: true
+        #     line: ""
+
+        - name: Install OpenVPN
+          ansible.builtin.shell:
+            chdir: "{{ dir }}"
+            cmd: AUTO_INSTALL=y APPROVE_IP=y IPV6_SUPPORT=n PORT_CHOICE=1 PROTOCOL_CHOICE=1 DNS=1 COMPRESSION_ENABLED=n CUSTOMIZE_ENC=n ./openvpn-install.sh
+            executable: /bin/bash
+          register: installed
+          changed_when: installed.rc != 0
+
+        - name: Stop service
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+            enabled: true
+            name: openvpn-server@server
+            state: stopped
+
+    # - name: Edit server.conf
+    #   block:
+    #     - name: Configure routing into VPC
+    #       ansible.builtin.blockinfile:
+    #         path: "{{ server_conf }}"
+    #         state: present
+    #         mode: "0774"
+    #         insertbefore: "verb 3"
+    #         block: |
+    #           push "route 10.30.0.0 255.255.0.0"
+    #           push "route 10.40.0.0 255.255.255.192"
+
+    #     - name: Remove redirect
+    #       ansible.builtin.lineinfile:
+    #         path: "{{ server_conf }}"
+    #         state: absent
+    #         search_string: push "redirect-gateway def1 bypass-dhcp"
+
+    #     - name: Remove DHCP option
+    #       ansible.builtin.lineinfile:
+    #         path: "{{ server_conf }}"
+    #         state: absent
+    #         search_string: push "dhcp-option DNS 10.30.0.2"
+
+    # - name: Edit client-template.txt
+    #   block:
+    #     - name: Configure split-tunneling
+    #       ansible.builtin.blockinfile:
+    #         path: "{{ client_template }}"
+    #         state: present
+    #         mode: "0774"
+    #         insertbefore: "verb 3"
+    #         block: |
+    #           route-nopull
+    #           route 10.30.0.0 255.255.0.0
+    #           route 10.40.0.0 255.255.255.192
+
+    - name: Copy OpenVPN PAM Config
+      ansible.builtin.copy:
+        src: "{{ pam_config }}"
+        dest: "/etc/pam.d/openvpn"
+        force: true
+        mode: "0444"
+
+    # - name: Reload service
+    #   ansible.builtin.systemd_service:
+    #     daemon_reload: true
+    #     enabled: true
+    #     name: openvpn-server@server
+    #     state: restarted
+
+    - name: Reboot machine
+      ansible.builtin.reboot:
+        msg: "Rebooting Machine"

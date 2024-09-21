@@ -1,0 +1,50 @@
+---
+- name: User Management
+  become: true
+  hosts: runners
+  vars_files: users.yml
+  vars:
+    default_user: ubuntu
+  tasks:
+    - name: Update user accounts
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        state: "{{ item.state }}"
+        create_home: true
+        shell: /bin/bash
+        password: '*'
+        remove: true
+      loop: "{{ users }}"
+
+    - name: Add SSH keys
+      when: item.state == 'present'
+      block:
+        - name: To users' directories
+          ansible.posix.authorized_key:
+            user: "{{ item.name }}"
+            key: "{{ item.public_key }}"
+            state: present
+          loop: "{{ users }}"
+
+        - name: Add SSH keys to {{ default_user }}'s authorized_key file
+          ansible.posix.authorized_key:
+            user: "{{ default_user }}"
+            key: "{{ item.public_key }}"
+            state: present
+          loop: "{{ users }}"
+
+    - name: Delete absent SSH keys from {{ default_user }}'s authorized_key file
+      ansible.posix.authorized_key:
+        user: "{{ default_user }}"
+        key: "{{ item.public_key }}"
+        state: absent
+      loop: "{{ users }}"
+      when: item.state == 'absent'
+
+    - name: Update sudoers
+      community.general.sudoers:
+        name: "{{ item.name }}-sudo"
+        state: "{{ item.state }}"
+        user: "{{ item.name }}"
+        commands: "ALL" # , !/bin/su - *, /bin/su - root"
+      loop: "{{ users }}"

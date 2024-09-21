@@ -1,0 +1,38 @@
+---
+rules:
+  - name: "Allow SSH"
+    service: ssh
+    port_number: 22
+    protocol: tcp
+    permanent: true
+    state: enabled
+
+  - name: "Allow DNS"
+    service: dns
+    port_number: 53
+    protocol: udp
+    permanent: false
+    state: disabled
+
+  - name: "Allow HTTP"
+    service: http
+    port_number: 80
+    protocol: tcp
+    permanent: true
+    state: enabled
+
+  - name: "Allow HTTPS"
+    service: https
+    port_number: 443
+    protocol: tcp
+    permanent: true
+    state: enabled
+
+  - name: "Allow OpenVPN"
+    service: openvpn
+    port_number: 1194
+    protocol: udp
+    permanent: true
+    state: enabled
+
+# Add more ports as needed

@@ -1,0 +1,11 @@
+---
+# State can have two options: 'present' or 'absent'.
+# Use the former to create user account, and latter to delete.
+users:
+  - name: ansible
+    state: present
+    public_key: ""
+
+  - name: john
+    state: absent
+    public_key: ""

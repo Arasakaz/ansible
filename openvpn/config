@@ -1,0 +1,10 @@
+# OpenVPN 2FA PAM
+account required pam_unix.so
+auth required pam_unix.so
+auth       substack     password-auth
+auth       include      postlogin
+account    required     pam_sepermit.so
+account    required     pam_nologin.so
+account    include      password-auth
+password   include      password-auth
+auth requisite /usr/lib64/security/pam_google_authenticator.so secret=/opt/openvpn/google-auth/${USER} user=root authtok_prompt=pin
