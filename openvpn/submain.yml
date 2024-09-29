@@ -1,0 +1,22 @@
+---
+- name: Manage OpenVPN client certificates
+  hosts: openvpn
+  become: true
+  vars_files: users.yml
+  vars:
+    dir: /home/ansible/
+    script: /home/ansible/openvpn-install.sh
+  tasks:
+    - name: Generate certificate
+      ansible.builtin.shell:
+        chdir: "{{ working_dir }}"
+        cmd: |
+          export MENU_OPTION=1
+          export CLIENT={{ item.name }}-aws
+          export PASS=1
+          ./openvpn-install.sh
+        executable: /bin/bash
+      register: certs_made
+      changed_when: certs_made.rc != 0
+      loop: "{{ users }}"
+      when: item.state == 'present'
